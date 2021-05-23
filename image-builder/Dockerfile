@@ -2,8 +2,8 @@ FROM docker.io/python:3-alpine
 ENV PYTHONUNBUFFERED 1
 
 RUN \
-    #sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    #pip config set global.index-url https://mirrors.aliyun.com/pypi/simple && \
+    sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    pip config set global.index-url https://mirrors.aliyun.com/pypi/simple && \
     echo "**** install build packages ****" && \
     apk add --no-cache --upgrade \
         build-base \
@@ -37,8 +37,8 @@ LABEL maintainer="madwind.cn@gmail.com" \
 ENV PYTHONUNBUFFERED 1
 
 RUN \
-    #sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    #pip config set global.index-url https://mirrors.aliyun.com/pypi/simple && \
+    sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    pip config set global.index-url https://mirrors.aliyun.com/pypi/simple && \
     echo "**** install runtime packages ****" && \
     apk add --no-cache \
         shadow \
@@ -80,6 +80,14 @@ RUN \
  usermod -G users flexget && \
  chown -R flexget:flexget /home/flexget && \
  chmod +x /usr/bin/entrypoint.sh
+
+# env preset
+ENV PUID 0
+ENV PGID 0
+ENV FG_LOG_LEVEL info
+ENV FG_LOG_FILE flexget.log
+ENV TZ Asia/Shanghai
+ENV FG_WEBUI_PASSWD qwer!@#$1234
 
 # add default volumes
 VOLUME /config /downloads
