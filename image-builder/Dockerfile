@@ -28,7 +28,8 @@ RUN pip install -U pip && \
     pip wheel fuzzywuzzy && \
     pip wheel python-Levenshtein && \
     pip wheel pyppeteer && \
-    pip wheel pyppeteer_stealth
+    pip wheel pyppeteer_stealth && \
+    pip wheel ply
 
 FROM docker.io/python:3-alpine
 LABEL maintainer="madwind.cn@gmail.com" \
@@ -61,7 +62,8 @@ RUN pip install -U pip && \
                 fuzzywuzzy \
                 python-Levenshtein \
                 pyppeteer \
-                pyppeteer_stealth && \
+                pyppeteer_stealth \
+                ply && \
     rm -rf /wheels
 
 ADD link_chromium .
