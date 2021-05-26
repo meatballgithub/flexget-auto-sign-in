@@ -29,7 +29,8 @@ RUN pip install -U pip && \
     pip wheel python-Levenshtein && \
     pip wheel pyppeteer && \
     pip wheel pyppeteer_stealth && \
-    pip wheel ply
+    pip wheel ply && \
+    pip wheel numpy
 
 FROM docker.io/python:3-alpine
 LABEL maintainer="madwind.cn@gmail.com" \
@@ -63,7 +64,8 @@ RUN pip install -U pip && \
                 python-Levenshtein \
                 pyppeteer \
                 pyppeteer_stealth \
-                ply && \
+                ply \
+                numpy && \
     rm -rf /wheels
 
 ADD link_chromium .
