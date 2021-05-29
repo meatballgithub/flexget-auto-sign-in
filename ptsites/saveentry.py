@@ -105,9 +105,9 @@ class ptAnalysis:
             plt.subplots_adjust(
                 left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
             )
-            for n, site_name in enumerate(site_names):
-                self.plotsingle(ax=ax[n], site_name=site_name)
-        plt.savefig("data.png")
+            for idx, site_name in enumerate(site_names):
+                self.plotsingle(ax=ax[idx], site_name=site_name)
+        plt.savefig("data.png", dpi=n * 20)
 
     def preprocess(self, days=30):
         # 原始数据
