@@ -45,11 +45,14 @@ class ptAnalysis:
         if pd.isna(up):
             m = np.nan
         else:
-            pattern1 = "^(-?\d+)(\.\d+)?"  # 浮点数
-            pattern2 = "t[i]*b"  # t[i]b
-            m = float(re.search(pattern1, up, flags=re.I).group())
-            if re.search(pattern2, up, flags=re.I):
+            number = "^(-?\d+)(\.\d+)?"  # 浮点数
+            mb = "m[i]*b"  # m[i]b
+            tb = "t[i]*b"  # t[i]b
+            m = float(re.search(number, up, flags=re.I).group())
+            if re.search(tb, up, flags=re.I):
                 m *= 1024
+            elif re.search(mb, up, flags=re.I):
+                m /= 1024
         return m
 
     def readdata(self):
@@ -80,10 +83,11 @@ class ptAnalysis:
         self.df.sort_values(by="time")
         try:
             df_origin = pd.read_csv(self.csv)
-            df_origin.reset_index(True)
-            self.df = pd.concat([df_origin, self.df], keys="time", sort=True)
+            df_origin.reset_index()
         except:
-            pass
+            df_origin = pd.DataFrame()
+        self.df = pd.concat([df_origin, self.df], sort=True)
+
         # 确保time存储的是数字，再去重复，排序
         self.df["time"] = pd.to_numeric(self.df["time"]).round(0).astype(int)
         self.df.drop_duplicates("time", inplace=True)
@@ -110,6 +114,8 @@ class ptAnalysis:
         plt.savefig("data.png", dpi=n * 20)
 
     def preprocess(self, days=30):
+        # 处理新加入的站之前的数据都是nan的问题
+        self.df[0:1] = self.df[0:1].fillna("0 gb")
         # 原始数据
         self.t0_num = self.df["time"].to_numpy()
         self.t0_date = list(map(lambda x: self.num2date(x), self.df["time"].to_list()))
@@ -134,10 +140,7 @@ class ptAnalysis:
 
     def plotsingle(self, site_name=None, ax=None):
         y0 = self.df[site_name].map(lambda x: self.readvolume(x))
-        try:
-            y0 = y0.fillna(method="ffill", axis=0)
-        except:
-            y0 = y0.fillna(metho="backfill", axis=0)
+        y0 = y0.fillna(method="ffill", axis=0)
         y0 = y0.to_numpy()
         # 计算每日增量
         y1 = np.interp(self.t1_num, self.t0_num, y0)
@@ -155,7 +158,9 @@ class ptAnalysis:
             string2 = "{:.3f}TB".format(sumup / 1024)
         else:
             string2 = "{:.2f}GB".format(sumup)
-        string = "{}\n upload:{}\nincrement:{}".format(site_name, string1, string2)
+        string = "{}\nupload:{}\nincrement:{}\ndaily:{:.4g}GB".format(
+            site_name, string1, string2, sumup / len(y1)
+        )
 
         if max(y0) > 1024:
             y0 = y0 / 1024
@@ -201,15 +206,5 @@ class ptAnalysis:
 if __name__ == "__main__":
     pt = ptAnalysis()
     pt.readdata()
-    pt.plot(
-        site_names=[
-            "hdhome",
-            "springsunday",
-            "hdsky",
-            "open",
-            "pterclub",
-            "m-team",
-            "eastgame",
-        ]
-    )
+    pt.plot(site_names=["hdhome", "springsunday", "hdsky", "open", "ourbits", "et8"])
     print("done")
