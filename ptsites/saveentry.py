@@ -30,10 +30,13 @@ class ptAnalysis:
         self.df = pd.DataFrame()
         self.oneday = 24 * 3600
         self.idx = -1
+        self.sites = []
+        self.sites_invalid = []
+        self.message = ""
 
     def date2num(self, date):  # 字符串转时间戳
         temp = datetime.datetime.strptime(date, "%Y/%m/%d %H")
-        return "{:.0f}".format(datetime.datetime.timestamp(temp))
+        return datetime.datetime.timestamp(temp)
 
     def num2date(self, num):  # 时间戳转 dattime 对象
         # return datetime.datetime.fromtimestamp(num)
@@ -96,24 +99,40 @@ class ptAnalysis:
         self.df.to_csv(self.csv, index=False)
 
     def plot(self, site_names, days=30):
-        self.preprocess(days=days)
-        n = len(site_names)
-        if n == 1:
+        self.preprocess(days=days, site_names=site_names)
+        n = len(self.sites)
+        if n == 0:
+            self.message = "未输入有效站名"
             figure, ax = plt.subplots()
-            self.plotsingle(ax=ax, site_name=site_names[0])
-
+            plt.savefig("data.png", dpi=5)
         else:
-            figure, ax = plt.subplots(
-                n, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
-            )
-            plt.subplots_adjust(
-                left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
-            )
-            for idx, site_name in enumerate(site_names):
-                self.plotsingle(ax=ax[idx], site_name=site_name)
-        plt.savefig("data.png", dpi=n * 20)
+            if self.sites_invalid:
+                self.message = (
+                    ",".join(self.sites_invalid) + "为无效站名\n"
+                    "绘制" + ",".join(self.sites) + "数据"
+                )
+            else:
+                self.message = "绘制" + ",".join(self.sites) + "数据"
+            if n == 1:
+                figure, ax = plt.subplots()
+                self.plotsingle(ax=ax, site_name=self.sites[0])
+            else:
+                figure, ax = plt.subplots(
+                    n, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
+                )
+                plt.subplots_adjust(
+                    left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
+                )
+                for idx, site_name in enumerate(self.sites):
+                    self.plotsingle(ax=ax[idx], site_name=site_name)
+            plt.savefig("data.png", dpi=n * 20)
 
-    def preprocess(self, days=30):
+    def preprocess(self, days=30, site_names=None):
+        # 确保days输入是整数,否则用默认值
+        if not isinstance(days, int):
+            days = 30
+        if days < 2:
+            days = 30
         # 处理新加入的站之前的数据都是nan的问题
         self.df[0:1] = self.df[0:1].fillna("0 gb")
         # 原始数据
@@ -130,13 +149,23 @@ class ptAnalysis:
         self.t1_date = [
             now - datetime.timedelta(days=deltadays - x - 1) for x in range(deltadays)
         ]
-        self.t1_num = list(
-            map(lambda x: self.date2num(x.strftime("%Y/%m/%d %H")), self.t1_date)
+        self.t1_num = np.array(
+            list(map(lambda x: self.date2num(x.strftime("%Y/%m/%d %H")), self.t1_date))
         )
         # 截取原始数据对应的画图段
         self.idx = -1
         while self.t0_date[self.idx] > self.t1_date[0]:
             self.idx -= 1
+        # 预处理site_names,抛弃无效的site_names
+        all_sites = list(self.df)
+        self.sites = []
+        self.sites_invalid = []
+        if site_names:
+            for site_name in site_names:
+                if site_name in all_sites:
+                    self.sites.append(site_name)
+                else:
+                    self.sites_invalid.append(site_name)
 
     def plotsingle(self, site_name=None, ax=None):
         y0 = self.df[site_name].map(lambda x: self.readvolume(x))
@@ -179,6 +208,7 @@ class ptAnalysis:
             y=max(dy) * 0.9,
             ha="left",
             va="top",
+            color="navy",
         )
         ax1.bar(
             self.t1_date,
@@ -206,5 +236,7 @@ class ptAnalysis:
 if __name__ == "__main__":
     pt = ptAnalysis()
     pt.readdata()
-    pt.plot(site_names=["hdhome", "springsunday", "hdsky", "open", "ourbits", "et8"])
-    print("done")
+    sites = ["123", "hdhome", "springsunday", "hdsky", "open", "ourbits", "et8"]
+    # sites = []
+    pt.plot(site_names=sites)
+    print(pt.message)
