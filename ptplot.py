@@ -1,3 +1,4 @@
+from matplotlib.pyplot import title
 from flexget import plugin
 from flexget.entry import Entry
 from flexget.event import event
@@ -24,10 +25,9 @@ class ptplot:
         pt = ptAnalysis()
         pt.readdata()
         pt.plot(site_names=sites, days=days)
-        # try:
-
-        # except:
-        #     pass
+        entry = Entry(title="plot", url="")
+        entry["message"] = pt.message
+        return [entry]
 
 
 @event("plugin.register")
