@@ -44,7 +44,7 @@ class ptAnalysis:
         temp = datetime.datetime.strftime(temp, "%Y/%m/%d %H")
         return datetime.datetime.strptime(temp, "%Y/%m/%d %H")
 
-    def readvolume(self, up):
+    def upstr2num(self, up):
         if pd.isna(up):
             m = np.nan
         else:
@@ -57,6 +57,15 @@ class ptAnalysis:
             elif re.search(mb, up, flags=re.I):
                 m /= 1024
         return m
+    def num2upstr(self,num):
+        if num<1:
+            m='{:.2f} MB'.format(num*1024)
+        elif num<1024:
+            m='{:.2f} GB'.format(num)
+        else:
+            m='{:.2f} TB'.format(num/1024)
+        return m
+
 
     def readdata(self):
         with open(self.json, "r") as f:
@@ -84,17 +93,26 @@ class ptAnalysis:
             else:
                 self.df = pd.merge(self.df, tempdf, on="time", how="outer")
         self.df.sort_values(by="time")
+        #求和
+        # step1 处理nan
+        temp=self.df.copy()
+        temp[0:1] = temp[0:1].fillna("0 gb")
+        temp = temp.fillna(method="ffill", axis=0)
+        # step2 除去time列;表格全部元素字符串转数字（1tb->1024,1gb->1,1mb->1/1024);按列求和计算日增量并转换成字符串保存
+        total=temp.drop('time',axis=1).applymap(lambda x:self.upstr2num(x)).apply(lambda x:self.num2upstr(x.sum()),axis=1)
+        self.df['total']=total
+        # 求和结束
         try:
             df_origin = pd.read_csv(self.csv)
             df_origin.reset_index()
         except:
             df_origin = pd.DataFrame()
-        self.df = pd.concat([df_origin, self.df], sort=True)
+        self.df = pd.concat([self.df,df_origin], sort=True)
 
         # 确保time存储的是数字，再去重复，排序
         self.df["time"] = pd.to_numeric(self.df["time"]).round(0).astype(int)
         self.df.drop_duplicates("time", inplace=True)
-        self.df.sort_values(by="time")
+        self.df.sort_values(by="time",inplace=True)
         self.df.set_index("time")
         self.df.to_csv(self.csv, index=False)
 
@@ -103,8 +121,12 @@ class ptAnalysis:
         n = len(self.sites)
         if n == 0:
             self.message = "未输入有效站名"
-            figure, ax = plt.subplots()
-            plt.savefig("data.png", dpi=5)
+            figure, ax = plt.subplots(figsize=(24 / 2.54, 10 / 2.54))
+            plt.subplots_adjust(
+                left=0.08, right=0.92, top=0.98, bottom=0.15, hspace=0
+            )
+            self.plotsingle(ax=ax,site_name='total')
+            plt.savefig("data.png")
         else:
             if self.sites_invalid:
                 self.message = (
@@ -113,18 +135,15 @@ class ptAnalysis:
                 )
             else:
                 self.message = "绘制" + ",".join(self.sites) + "数据"
-            if n == 1:
-                figure, ax = plt.subplots()
-                self.plotsingle(ax=ax, site_name=self.sites[0])
-            else:
-                figure, ax = plt.subplots(
-                    n, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
-                )
-                plt.subplots_adjust(
-                    left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
-                )
-                for idx, site_name in enumerate(self.sites):
-                    self.plotsingle(ax=ax[idx], site_name=site_name)
+            figure, ax = plt.subplots(
+                n+1, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
+            )
+            plt.subplots_adjust(
+                left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
+            )
+            self.plotsingle(ax=ax[0],site_name='total')
+            for idx, site_name in enumerate(self.sites):
+                self.plotsingle(ax=ax[idx+1], site_name=site_name)
             plt.savefig("data.png", dpi=n * 20)
 
     def preprocess(self, days=30, site_names=None):
@@ -168,7 +187,7 @@ class ptAnalysis:
                     self.sites_invalid.append(site_name)
 
     def plotsingle(self, site_name=None, ax=None):
-        y0 = self.df[site_name].map(lambda x: self.readvolume(x))
+        y0 = self.df[site_name].map(lambda x: self.upstr2num(x))
         y0 = y0.fillna(method="ffill", axis=0)
         y0 = y0.to_numpy()
         # 计算每日增量
