@@ -144,7 +144,7 @@ class ptAnalysis:
             self.plotsingle(ax=ax[0],site_name='total')
             for idx, site_name in enumerate(self.sites):
                 self.plotsingle(ax=ax[idx+1], site_name=site_name)
-            plt.savefig("data.png", dpi=n * 20)
+            plt.savefig("data.png", dpi=n * 30)
 
     def preprocess(self, days=30, site_names=None):
         # 确保days输入是整数,否则用默认值
@@ -244,7 +244,10 @@ class ptAnalysis:
                 s = ""
             else:
                 s = "{:.0f}".format(dy[i])
-            xy = (self.t1_date[i], max(dy) * 0.1)
+            if i%2==0:
+                xy = (self.t1_date[i], max(dy) * 0.1)
+            else:
+                xy = (self.t1_date[i], max(dy) * 0.2)
             ax1.annotate(s=s, xy=xy, color="blue", ha="center", va="baseline")
         ax.xaxis.set_major_formatter(mdate.DateFormatter("%m/%d"))
         for xtick in ax.get_xticklabels():
