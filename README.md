@@ -1,4 +1,4 @@
-# flexget augo sign in
+# flexget auto sign in
 
 ---
 fork自[IvonWei/flexget_qbittorrent_mod](https://https://github.com/IvonWei/flexget_qbittorrent_mod)  
