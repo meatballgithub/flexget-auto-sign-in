@@ -1,4 +1,3 @@
-from ptsites import saveentry
 from flexget import plugin
 from flexget.entry import Entry
 from loguru import logger
