@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import re
 from enum import Enum
@@ -10,6 +9,7 @@ from flexget.utils.soup import get_soup
 from loguru import logger
 from requests.adapters import HTTPAdapter
 
+from ..utils.cfscrapewrapper import CFScrapeWrapper
 from ..utils.net_utils import NetUtils
 from ..utils.url_recorder import UrlRecorder
 
@@ -60,6 +60,7 @@ class Work:
 
 class SiteBase:
     URL = None
+    DOWNLOAD_PAGE = 'download.php?id={torrent_id}'
     USER_CLASSES = None
 
     def __init__(self):
@@ -85,9 +86,9 @@ class SiteBase:
 
     def sign_in(self, entry, config):
         self.workflow = []
-        self.workflow.extend(self.build_login_work(entry, config))
+        if not hasattr(entry['site_config'], 'cookie'):
+            self.workflow.extend(self.build_login_workflow(entry, config))
         self.workflow.extend(self.build_workflow(entry, config))
-
         if not entry.get('url') or not self.workflow:
             entry.fail_with_prefix(f"site: {entry['site_name']} url or workflow is empty")
             return
@@ -105,7 +106,7 @@ class SiteBase:
                     if not self.check_state(entry, work, last_response, last_content):
                         return
 
-    def build_login_work(self, entry, config):
+    def build_login_workflow(self, entry, config):
         return []
 
     def build_workflow(self, entry, config):
@@ -118,10 +119,19 @@ class SiteBase:
             elif work_key.endswith('urls'):
                 setattr(work, work_key, list(map(lambda path: urljoin(url, path), work_value)))
 
-    @staticmethod
-    def build_reseed(entry, config, site, passkey, torrent_id):
-        download_page = site['download_page'].format(torrent_id=torrent_id, passkey=passkey)
-        entry['url'] = 'https://{}/{}'.format(site['base_url'], download_page)
+    @classmethod
+    def build_reseed(cls, entry, config, site, passkey, torrent_id):
+        if isinstance(passkey, dict):
+            user_agent = config.get('user-agent')
+            cookie = passkey.get('cookie')
+            entry['headers'] = {
+                'user-agent': user_agent,
+            }
+            entry['cookie'] = cookie
+            download_page = cls.DOWNLOAD_PAGE.format(torrent_id=torrent_id)
+        else:
+            download_page = site['download_page'].format(torrent_id=torrent_id, passkey=passkey)
+        entry['url'] = f"https://{site['base_url']}/{download_page}"
 
     @staticmethod
     def build_reseed_from_page(entry, config, passkey, torrent_id, base_url, torrent_page_url, url_regex):
@@ -135,25 +145,18 @@ class SiteBase:
         download_url = ''
         try:
             torrent_page_url = urljoin(base_url, torrent_page_url.format(torrent_id))
-            session = requests.Session()
+            session = CFScrapeWrapper.create_scraper(requests.Session())
+            user_agent = config.get('user-agent')
+            cookie = passkey.get('cookie')
             headers = {
-                'user-agent': config.get('user-agent'),
+                'user-agent': user_agent,
                 'referer': base_url
             }
-            cookie = passkey.get('cookie')
             session.headers.update(headers)
             session.cookies.update(NetUtils.cookie_str_to_dict(cookie))
-            response = session.get(torrent_page_url, timeout=30)
-            if response is not None and response.content:
-                if re.search(NetworkErrorReason.DDoS_protection_by_Cloudflare.value, NetUtils.decode(response)):
-                    entry['headers'] = headers
-                    entry['cookie'] = cookie
-                    cf_cookie = asyncio.run(SiteBase.get_cf_cookie(entry))
-                    session.cookies.update(NetUtils.cookie_str_to_dict(cf_cookie))
-                    response = session.get(torrent_page_url, timeout=30)
-            if response.status_code == 200:
-                re_search = re.search(url_regex, response.text)
-                if re_search:
+            response = session.get(torrent_page_url, timeout=60)
+            if response is not None and response.status_code == 200:
+                if re_search := re.search(url_regex, response.text):
                     download_url = urljoin(base_url, re_search.group())
         except Exception as e:
             logger.warning(str(e.args))
@@ -165,7 +168,7 @@ class SiteBase:
 
     def _request(self, entry, method, url, **kwargs):
         if not self.requests:
-            self.requests = requests.Session()
+            self.requests = CFScrapeWrapper.create_scraper(requests.Session())
             if entry_headers := entry.get('headers'):
                 entry_headers['accept-encoding'] = 'gzip, deflate, br'
                 self.requests.headers.update(entry_headers)
@@ -175,11 +178,6 @@ class SiteBase:
             self.requests.mount('https://', HTTPAdapter(max_retries=2))
         try:
             response = self.requests.request(method, url, timeout=60, **kwargs)
-            if response is not None and response.content:
-                if re.search(NetworkErrorReason.DDoS_protection_by_Cloudflare.value, NetUtils.decode(response)):
-                    cf_cookie = asyncio.run(SiteBase.get_cf_cookie(entry))
-                    self.requests.cookies.update(NetUtils.cookie_str_to_dict(cf_cookie))
-                    response = self.requests.request(method, url, timeout=60, **kwargs)
             if response is not None and response.status_code != 200:
                 entry.fail_with_prefix(f'response.status_code={response.status_code}')
             return response
@@ -349,32 +347,3 @@ class SiteBase:
         if handle:
             detail = handle(detail)
         return str(detail)
-
-    @staticmethod
-    async def get_cf_cookie(entry):
-        logger.info(f"{entry['site_name']} get_cf_cookie")
-        entry_headers = entry.get('headers')
-        entry_cookie = entry.get('cookie')
-        if not (launch and stealth):
-            entry.fail_with_prefix('Dependency does not exist: [pyppeteer, pyppeteer_stealth]')
-            return
-        browser = await launch(headless=True, handleSIGINT=False, handleSIGTERM=False, handleSIGHUP=False,
-                               args=['--no-sandbox'])
-        page = await browser.newPage()
-        await stealth(page)
-        await page.setUserAgent(entry_headers.get('user-agent'))
-        cookie_remove_cf = ''
-        if entry_cookie:
-            cookie_remove_cf = ';'.join(
-                list(filter(lambda x: not re.search('__cfduid|cf_clearance|__cf_bm', x),
-                            entry_cookie.split(';'))))
-        await page.setExtraHTTPHeaders({'cookie': cookie_remove_cf})
-        await page.goto(entry['url'])
-        await asyncio.sleep(10)
-        page_cookie = await page.cookies()
-        if cookie_remove_cf:
-            cookie_remove_cf += ';'
-        cf_cookie = cookie_remove_cf + ';'.join(
-            list(map(lambda c: f"{c['name']}={c['value']}", page_cookie)))
-        await browser.close()
-        return cf_cookie

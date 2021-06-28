@@ -1,4 +1,5 @@
 import re
+import threading
 from io import BytesIO
 
 from loguru import logger
@@ -15,6 +16,9 @@ except ImportError:
 
 
 class BaiduOcr:
+    qps = 1
+    lock = threading.Semaphore(qps)
+
     @staticmethod
     def get_client(entry, config):
         app_id = config['aipocr'].get('app_id')
@@ -27,7 +31,6 @@ class BaiduOcr:
         if not (app_id and api_key and secret_key):
             entry.fail_with_prefix('AipOcr not set')
             return None
-
         return AipOcr(app_id, api_key, secret_key)
 
     @staticmethod
@@ -42,14 +45,18 @@ class BaiduOcr:
 
         img.save(img_byte_arr, format='JPEG')
         try:
-            result = client.basicAccurate(img_byte_arr.getvalue(), {'language_type': 'JAP'})
+            with BaiduOcr.lock:
+                result = client.basicAccurate(img_byte_arr.getvalue(), {'language_type': 'JAP'})
         except Exception as e:
             entry.fail_with_prefix(f'baidu ocr error: {e}')
             return None
         logger.info(result)
+        if result.get('error_msg'):
+            entry.fail_with_prefix(result.get('error_msg'))
+            return None
         text = ''
-        for bb in result.get('words_result'):
-            text = text + bb.get('words')
+        for words_list in result.get('words_result'):
+            text = text + words_list.get('words')
         return re.sub('[^\\w]|[a-zA-Z\\d]', '', text)
 
     @staticmethod
@@ -68,7 +75,8 @@ class BaiduOcr:
         img_byte_arr = BytesIO()
         img.save(img_byte_arr, format='png')
         try:
-            result = client.basicAccurate(img_byte_arr.getvalue(), {"language_type": "ENG"})
+            with BaiduOcr.lock:
+                result = client.basicAccurate(img_byte_arr.getvalue(), {"language_type": "ENG"})
         except Exception as e:
             entry.fail_with_prefix('baidu ocr error.')
             return None, None
