@@ -206,8 +206,9 @@ class ptAnalysis:
             string2 = "{:.3f}TB".format(sumup / 1024)
         else:
             string2 = "{:.2f}GB".format(sumup)
+        #显示每个站的数据汇总;日平均增量仅计算日上传>1g的天数
         string = "{}\nupload:{}\nincrement:{}\ndaily:{:.4g}GB".format(
-            site_name, string1, string2, sumup / len(y1)
+            site_name, string1, string2, sumup / np.sum(dy>=1)
         )
 
         if max(y0) > 1024:
@@ -258,7 +259,7 @@ class ptAnalysis:
 if __name__ == "__main__":
     pt = ptAnalysis()
     pt.readdata()
-    sites = ["123", "hdhome", "springsunday", "hdsky", "open", "ourbits", "et8"]
+    sites = ["123", "hdhome", "springsunday", "hdsky", "open", "ourbits", "totheglory","chdbits"]
     # sites = []
     pt.plot(site_names=sites)
     print(pt.message)
