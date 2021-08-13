@@ -49,6 +49,7 @@ class ptAnalysis:
             m = np.nan
         else:
             number = "^(-?\d+)(\.\d+)?"  # 浮点数
+            kb = "k[i]b"  # k[i]b
             mb = "m[i]*b"  # m[i]b
             tb = "t[i]*b"  # t[i]b
             m = float(re.search(number, up, flags=re.I).group())
@@ -56,16 +57,18 @@ class ptAnalysis:
                 m *= 1024
             elif re.search(mb, up, flags=re.I):
                 m /= 1024
-        return m
-    def num2upstr(self,num):
-        if num<1:
-            m='{:.2f} MB'.format(num*1024)
-        elif num<1024:
-            m='{:.2f} GB'.format(num)
-        else:
-            m='{:.2f} TB'.format(num/1024)
+            elif re.search(kb, up, flags=re.I):
+                m /= 1024 * 1024
         return m
 
+    def num2upstr(self, num):
+        if num < 1:
+            m = "{:.2f} MB".format(num * 1024)
+        elif num < 1024:
+            m = "{:.2f} GB".format(num)
+        else:
+            m = "{:.2f} TB".format(num / 1024)
+        return m
 
     def readdata(self):
         with open(self.json, "r") as f:
@@ -92,27 +95,32 @@ class ptAnalysis:
                 self.df = tempdf
             else:
                 self.df = pd.merge(self.df, tempdf, on="time", how="outer")
-        self.df.sort_values(by="time")
-        #求和
+        self.df.drop_duplicates("time", inplace=True)
+        self.df.sort_values(by="time", inplace=True)  # 必须去重和排序，否则有bug
+        # 求和
         # step1 处理nan
-        temp=self.df.copy()
+        temp = self.df.copy()
         temp[0:1] = temp[0:1].fillna("0 gb")
         temp = temp.fillna(method="ffill", axis=0)
         # step2 除去time列;表格全部元素字符串转数字（1tb->1024,1gb->1,1mb->1/1024);按列求和计算日增量并转换成字符串保存
-        total=temp.drop('time',axis=1).applymap(lambda x:self.upstr2num(x)).apply(lambda x:self.num2upstr(x.sum()),axis=1)
-        self.df['total']=total
+        total = (
+            temp.drop("time", axis=1)
+            .applymap(lambda x: self.upstr2num(x))
+            .apply(lambda x: self.num2upstr(x.sum()), axis=1)
+        )
+        self.df["total"] = total
         # 求和结束
         try:
             df_origin = pd.read_csv(self.csv)
             df_origin.reset_index()
         except:
             df_origin = pd.DataFrame()
-        self.df = pd.concat([self.df,df_origin], sort=True)
+        self.df = pd.concat([self.df, df_origin], sort=True)
 
         # 确保time存储的是数字，再去重复，排序
         self.df["time"] = pd.to_numeric(self.df["time"]).round(0).astype(int)
         self.df.drop_duplicates("time", inplace=True)
-        self.df.sort_values(by="time",inplace=True)
+        self.df.sort_values(by="time", inplace=True)
         self.df.set_index("time")
         self.df.to_csv(self.csv, index=False)
 
@@ -122,10 +130,8 @@ class ptAnalysis:
         if n == 0:
             self.message = "未输入有效站名"
             figure, ax = plt.subplots(figsize=(24 / 2.54, 10 / 2.54))
-            plt.subplots_adjust(
-                left=0.08, right=0.92, top=0.98, bottom=0.15, hspace=0
-            )
-            self.plotsingle(ax=ax,site_name='total')
+            plt.subplots_adjust(left=0.08, right=0.92, top=0.98, bottom=0.15, hspace=0)
+            self.plotsingle(ax=ax, site_name="total")
             plt.savefig("data.png")
         else:
             if self.sites_invalid:
@@ -136,14 +142,14 @@ class ptAnalysis:
             else:
                 self.message = "绘制" + ",".join(self.sites) + "数据"
             figure, ax = plt.subplots(
-                n+1, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
+                n + 1, 1, sharex=True, figsize=(24 / 2.54, n * 10 / 2.54)
             )
             plt.subplots_adjust(
                 left=0.08, right=0.92, top=0.98, bottom=0.15 / n, hspace=0
             )
-            self.plotsingle(ax=ax[0],site_name='total')
+            self.plotsingle(ax=ax[0], site_name="total")
             for idx, site_name in enumerate(self.sites):
-                self.plotsingle(ax=ax[idx+1], site_name=site_name)
+                self.plotsingle(ax=ax[idx + 1], site_name=site_name)
             plt.savefig("data.png", dpi=n * 30)
 
     def preprocess(self, days=30, site_names=None):
@@ -206,9 +212,9 @@ class ptAnalysis:
             string2 = "{:.3f}TB".format(sumup / 1024)
         else:
             string2 = "{:.2f}GB".format(sumup)
-        #显示每个站的数据汇总;日平均增量仅计算日上传>1g的天数
+        # 显示每个站的数据汇总;日平均增量仅计算日上传>1g的天数
         string = "{}\nupload:{}\nincrement:{}\ndaily:{:.4g}GB".format(
-            site_name, string1, string2, sumup / np.sum(dy>=1)
+            site_name, string1, string2, sumup / np.sum(dy >= 1)
         )
 
         if max(y0) > 1024:
@@ -245,7 +251,7 @@ class ptAnalysis:
                 s = ""
             else:
                 s = "{:.0f}".format(dy[i])
-            if i%2==0:
+            if i % 2 == 0:
                 xy = (self.t1_date[i], max(dy) * 0.1)
             else:
                 xy = (self.t1_date[i], max(dy) * 0.2)
@@ -259,7 +265,16 @@ class ptAnalysis:
 if __name__ == "__main__":
     pt = ptAnalysis()
     pt.readdata()
-    sites = ["123", "hdhome", "springsunday", "hdsky", "open", "ourbits", "totheglory","chdbits"]
+    sites = [
+        "123",
+        "hdhome",
+        "springsunday",
+        "hdsky",
+        "open",
+        "ourbits",
+        "totheglory",
+        "chdbits",
+    ]
     # sites = []
     pt.plot(site_names=sites)
     print(pt.message)
