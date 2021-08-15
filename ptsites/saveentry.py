@@ -256,6 +256,12 @@ class ptAnalysis:
             else:
                 xy = (self.t1_date[i], max(dy) * 0.2)
             ax1.annotate(s=s, xy=xy, color="blue", ha="center", va="baseline")
+        if site_name == "total":
+            ax.tick_params(axis="x",
+                           bottom=False,
+                           top=True,
+                           labelbottom=False,
+                           labeltop=True)
         ax.xaxis.set_major_formatter(mdate.DateFormatter("%m/%d"))
         for xtick in ax.get_xticklabels():
             xtick.set_rotation(45)
