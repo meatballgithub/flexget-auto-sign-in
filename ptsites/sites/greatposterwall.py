@@ -1,5 +1,6 @@
 import datetime
 import re
+from urllib.parse import urljoin
 
 from ..schema.gazelle import Gazelle
 from ..schema.site_base import Work, SignState
@@ -9,9 +10,9 @@ from ..utils.net_utils import NetUtils
 class MainClass(Gazelle):
     URL = 'https://greatposterwall.com/'
     USER_CLASSES = {
+        'share_ratio': [1.2, 1.2],
         'downloaded': [214748364800, 10995116277760],
-        'share_ratio': [1.2],
-        'points': [14, 140],
+        'days': [14, 140]
     }
 
     def build_workflow(self, entry, config):
@@ -25,6 +26,13 @@ class MainClass(Gazelle):
                 is_base_content=True
             )
         ]
+
+    @classmethod
+    def build_reseed(cls, entry, config, site, passkey, torrent_id):
+        download_page = site['download_page'].format(torrent_id=torrent_id,
+                                                     authkey=passkey['authkey'],
+                                                     torrent_pass=passkey['torrent_pass'])
+        entry['url'] = urljoin(MainClass.URL, download_page)
 
     def build_selector(self):
         selector = super(MainClass, self).build_selector()
