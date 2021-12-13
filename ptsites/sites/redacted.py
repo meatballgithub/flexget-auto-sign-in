@@ -8,34 +8,32 @@ from ..utils.net_utils import NetUtils
 
 
 class MainClass(Gazelle):
-    URL = 'https://dicmusic.club/'
+<<<<<<< HEAD:ptsites/sites/greatposterwall.py
+    URL = 'https://greatposterwall.com/'
     USER_CLASSES = {
-        'uploaded': [26843545600, 1319413953331],
-        'share_ratio': [1.05, 1.05],
-        'days': [14, 112]
+        'share_ratio': [1.2, 1.2],
+        'downloaded': [214748364800, 10995116277760],
+        'days': [14, 140]
+=======
+    URL = 'https://redacted.ch/'
+    USER_CLASSES = {
+        'uploaded': [536870912000],
+        'share_ratio': [0.65],
+        'days': [56]
+>>>>>>> upstream/master:ptsites/sites/redacted.py
     }
-
-    @classmethod
-    def build_reseed_schema(cls):
-        return {
-            cls.get_module_name(): {
-                'type': 'object',
-                'properties': {
-                    'authkey': {'type': 'string'},
-                    'torrent_pass': {'type': 'string'}
-                },
-                "required": ["authkey", "torrent_pass"],
-                'additionalProperties': False
-            }
-        }
 
     def build_workflow(self, entry, config):
         return [
             Work(
                 url='/',
                 method='get',
-                succeed_regex='积分 \\(.*?\\)',
+<<<<<<< HEAD:ptsites/sites/greatposterwall.py
+                succeed_regex='<a href="user.php\\?id=\\d+" class="username">.*?</a>',
                 fail_regex=None,
+=======
+                succeed_regex='<h1 class="hidden">Redacted</h1>',
+>>>>>>> upstream/master:ptsites/sites/redacted.py
                 check_state=('final', SignState.SUCCEED),
                 is_base_content=True
             )
@@ -53,7 +51,7 @@ class MainClass(Gazelle):
         NetUtils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
-                    'elements': {'table': 'div.box.box_info.box_userinfo_stats > ul'}
+                    'elements': {'table': '#content > div > div.sidebar > div:nth-child(1) > ul'}
                 },
                 'extend': {
                     'link': '/ajax.php?action=community_stats&userid={}'
@@ -61,18 +59,23 @@ class MainClass(Gazelle):
             },
             'details': {
                 'join_date': {
+<<<<<<< HEAD:ptsites/sites/greatposterwall.py
                     'regex': '加入时间:(.*?)前',
+=======
+                    'regex': 'Joined: (.*?ago)',
+>>>>>>> upstream/master:ptsites/sites/redacted.py
                     'handle': self.handle_join_date
                 },
+                'points': None,
                 'hr': None
             }
         })
         return selector
 
     def handle_join_date(self, value):
-        year_regex = '(\\d+) 年'
-        month_regex = '(\\d+) 月'
-        week_regex = '(\\d+) 周'
+        year_regex = '(\\d+) years?'
+        month_regex = '(\\d+) months?'
+        week_regex = '(\\d+) weeks?'
         year = 0
         month = 0
         week = 0

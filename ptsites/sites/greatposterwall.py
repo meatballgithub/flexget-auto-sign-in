@@ -15,12 +15,26 @@ class MainClass(Gazelle):
         'days': [14, 140]
     }
 
+    @classmethod
+    def build_reseed_schema(cls):
+        return {
+            cls.get_module_name(): {
+                'type': 'object',
+                'properties': {
+                    'authkey': {'type': 'string'},
+                    'torrent_pass': {'type': 'string'}
+                },
+                "required": ["authkey", "torrent_pass"],
+                'additionalProperties': False
+            }
+        }
+
     def build_workflow(self, entry, config):
         return [
             Work(
                 url='/',
                 method='get',
-                succeed_regex='<a href="user.php\\?id=\\d+" class="username">.*?</a>',
+                succeed_regex='<span class="username">.*?</span>',
                 fail_regex=None,
                 check_state=('final', SignState.SUCCEED),
                 is_base_content=True

@@ -3,14 +3,15 @@ import re
 
 from ..schema.gazelle import Gazelle
 from ..schema.site_base import Work, SignState
+from ..utils.net_utils import NetUtils
 
 
 class MainClass(Gazelle):
-    URL = 'https://jpopsuki.eu/'
+    URL = 'https://www.empornium.is/'
     USER_CLASSES = {
-        'uploaded': [26843545600],
+        'uploaded': [107374182400],
         'share_ratio': [1.05],
-        'days': [14]
+        'days': [56]
     }
 
     def build_workflow(self, entry, config):
@@ -18,59 +19,36 @@ class MainClass(Gazelle):
             Work(
                 url='/',
                 method='get',
-                succeed_regex='JPopsuki 2.0',
+                succeed_regex='<h1 class="hidden">Empornium</h1>',
                 check_state=('final', SignState.SUCCEED),
                 is_base_content=True
             )
         ]
 
     def build_selector(self):
-        selector = {
-            'user_id': 'user.php\\?id=(\\d+)',
+        selector = super(MainClass, self).build_selector()
+        NetUtils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
-                    'link': '/user.php?id={}',
                     'elements': {
-                        'table': '#content > div > div.sidebar > div:nth-last-child(4) > ul',
-                        'Community': '#content > div > div.sidebar > div:last-child > ul'
-
+                        'bar': 'table.userinfo_stats',
+                        'table': '#content > div > div.sidebar > div:nth-child(4) > ul',
+                        'community': '#content > div > div.sidebar > div:nth-child(10) > ul'
                     }
                 }
             },
             'details': {
-                'uploaded': {
-                    'regex': 'Uploaded: ([\\d.]+ ?[ZEPTGMK]?B)'
-                },
-                'downloaded': {
-                    'regex': 'Downloaded: ([\\d.]+ ?[ZEPTGMK]?B)'
-                },
-                'share_ratio': {
-                    'regex': 'Ratio: (--|∞|[\\d,.]+)',
-                    'handle': self.handle_share_ratio
-                },
-                'points': {
-                    'regex': 'Bonus Points: ([\\d,.]+)',
-                },
                 'join_date': {
                     'regex': 'Joined: (.*?ago)',
                     'handle': self.handle_join_date
                 },
-                'seeding': {
-                    'regex': 'Seeding: ([\\d,]+)'
-                },
-                'leeching': {
-                    'regex': 'Leeching: ([\\d,]+)'
+                'points': {
+                    'regex': 'Credits:\s+([\\d,.]+)',
                 },
                 'hr': None
             }
-        }
+        })
         return selector
-
-    def handle_share_ratio(self, value):
-        if value in ['--', '∞']:
-            return '0'
-        else:
-            return value
 
     def handle_join_date(self, value):
         year_regex = '(\\d+) years?'

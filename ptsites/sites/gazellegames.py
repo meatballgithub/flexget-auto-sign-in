@@ -15,6 +15,22 @@ class MainClass(Gazelle):
         'points': [1200, 6000],
     }
 
+    @classmethod
+    def build_sign_in_schema(cls):
+        return {
+            cls.get_module_name(): {
+                cls.get_module_name(): {
+                    'type': 'object',
+                    'properties': {
+                        'cookie': {'type': 'string'},
+                        'key': {'type': 'string'},
+                        'name': {'type': 'string'}
+                    },
+                    'additionalProperties': False
+                }
+            }
+        }
+
     def build_workflow(self, entry, config):
         return [
             Work(
@@ -76,7 +92,8 @@ class MainClass(Gazelle):
             'uploaded': f'{details_response_json.get("response").get("stats").get("uploaded") or 0} B'.replace(',', ''),
             'downloaded': f'{details_response_json.get("response").get("stats").get("downloaded") or 0} B'.replace(',',
                                                                                                                    ''),
-            'share_ratio': str(details_response_json.get('response').get('stats').get('ratio') or 0).replace(',', ''),
+            'share_ratio': self.handle_share_ratio(
+                str(details_response_json.get('response').get('stats').get('ratio') or 0).replace(',', '')),
             'points': str(details_response_json.get('response').get('achievements').get('totalPoints') or 0).replace(
                 ',', ''),
             'seeding': str(details_response_json.get('response').get('community').get('seeding') or 0).replace(',', ''),

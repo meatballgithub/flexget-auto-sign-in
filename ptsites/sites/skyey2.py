@@ -12,6 +12,25 @@ class MainClass(Discuz):
         'points': [1000000]
     }
 
+    @classmethod
+    def build_sign_in_schema(cls):
+        return {
+            cls.get_module_name(): {
+                'type': 'object',
+                'properties': {
+                    'login': {
+                        'type': 'object',
+                        'properties': {
+                            'username': {'type': 'string'},
+                            'password': {'type': 'string'},
+                        },
+                        'additionalProperties': False
+                    }
+                },
+                'additionalProperties': False
+            }
+        }
+
     def build_login_workflow(self, entry, config):
         return [
             Work(
@@ -47,6 +66,13 @@ class MainClass(Discuz):
         
         secret_key = login.get('secret_key')
         username,password = login['username'],login['password']
+
+        if secret_key:
+            totp_code = GoogleAuth.calc(secret_key)
+            username += '@' + totp_code
+
+        secret_key = login.get('secret_key')
+        username, password = login['username'], login['password']
 
         if secret_key:
             totp_code = GoogleAuth.calc(secret_key)
