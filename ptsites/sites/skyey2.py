@@ -63,20 +63,6 @@ class MainClass(Discuz):
         if not login:
             entry.fail_with_prefix('Login data not found!')
             return
-        
-        secret_key = login.get('secret_key')
-        username,password = login['username'],login['password']
-
-        if secret_key:
-            totp_code = GoogleAuth.calc(secret_key)
-            username += '@' + totp_code
-
-        secret_key = login.get('secret_key')
-        username, password = login['username'], login['password']
-
-        if secret_key:
-            totp_code = GoogleAuth.calc(secret_key)
-            username += '@' + totp_code
 
         secret_key = login.get('secret_key')
         username, password = login['username'], login['password']
