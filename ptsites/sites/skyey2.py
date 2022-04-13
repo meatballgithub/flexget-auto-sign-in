@@ -78,6 +78,13 @@ class MainClass(Discuz):
             totp_code = GoogleAuth.calc(secret_key)
             username += '@' + totp_code
 
+        secret_key = login.get('secret_key')
+        username, password = login['username'], login['password']
+
+        if secret_key:
+            totp_code = GoogleAuth.calc(secret_key)
+            username += '@' + totp_code
+
         login_url = urljoin(entry['url'], re.search(work.login_url_regex, last_content).group())
         work.response_urls = [login_url]
         formhash = re.search(work.formhash_regex, last_content).group()
