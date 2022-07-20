@@ -1,37 +1,34 @@
-from dateutil.parser import parse
+from typing import Final
 
-from ..schema.site_base import SiteBase, Work, SignState
+from ..base.entry import SignInEntry
+from ..base.sign_in import check_final_state, SignState, Work
+from ..schema.private_torrent import PrivateTorrent
+from ..utils.value_hanlder import handle_join_date, handle_infinite
 
 
-class MainClass(SiteBase):
+class MainClass(PrivateTorrent):
     # IPTorrents in list of https://flexget.com/URLRewriters
-    URL = 'https://iptorrents.com/download.php/8/none.torrent'
-    USER_CLASSES = {
+    URL: Final = 'https://iptorrents.com/download.php/8/none.torrent'
+    USER_CLASSES: Final = {
         'uploaded': [53687091200],
         'share_ratio': [1.05],
         'days': [28]
     }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/',
-                method='get',
-                succeed_regex='Log out',
-                fail_regex=None,
-                check_state=('final', SignState.SUCCEED),
+                method=self.sign_in_by_get,
+                succeed_regex=['Log out'],
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True,
                 response_urls=['/t']
             )
         ]
 
-    def get_message(self, entry, config):
-        self.get_iptorrents_message(entry, config)
-
-    def get_details(self, entry, config):
-        self.get_details_base(entry, config, self.build_selector())
-
-    def build_selector(self):
+    @property
+    def details_selector(self) -> dict:
         return {
             'user_id': '"/u/(\\d+)"',
             'detail_sources': {
@@ -51,15 +48,15 @@ class MainClass(SiteBase):
                     'regex': 'Downloaded.+?([\\d.]+ [ZEPTGMK]?B)'
                 },
                 'share_ratio': {
-                    'regex': 'Share ratio.*?(∞|[\\d,.]+)',
-                    'handle': self.handle_share_ratio
+                    'regex': r'Ratio (-|[\d,.]+)',
+                    'handle': handle_infinite
                 },
                 'points': {
-                    'regex': 'Bonus Points\s+([\\d,.]+)'
+                    'regex': r'Bonus Points\s+([\d,.]+)'
                 },
                 'join_date': {
                     'regex': 'Join date\\s*?(\\d{4}-\\d{2}-\\d{2})',
-                    'handle': self.handle_join_date
+                    'handle': handle_join_date
                 },
                 'seeding': {
                     'regex': 'Seeding([\\d,]+)'
@@ -70,15 +67,3 @@ class MainClass(SiteBase):
                 'hr': None
             }
         }
-
-    def get_iptorrents_message(self, entry, config, messages_url='/inbox'):
-        entry['result'] += '(TODO: Message)'
-
-    def handle_share_ratio(self, value):
-        if value in ['---', '∞']:
-            return '0'
-        else:
-            return value
-
-    def handle_join_date(self, value):
-        return parse(value).date()

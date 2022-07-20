@@ -1,39 +1,41 @@
+from typing import Final
+
+from ..base.entry import SignInEntry
+from ..base.sign_in import check_sign_in_state, SignState, check_final_state, Work
 from ..schema.nexusphp import NexusPHP
-from ..schema.site_base import SignState, Work
-from ..utils.net_utils import NetUtils
+from ..utils import net_utils
 
 
 class MainClass(NexusPHP):
-    URL = 'https://www.haidan.video/'
-    USER_CLASSES = {
+    URL: Final = 'https://www.haidan.video/'
+    USER_CLASSES: Final = {
         'downloaded': [2199023255552, 8796093022208],
         'share_ratio': [4, 5.5],
         'days': [175, 364]
     }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/index.php',
-                method='get',
-                succeed_regex='(?<=value=")已经打卡(?=")',
-                fail_regex=None,
-                check_state=('sign_in', SignState.NO_SIGN_IN),
+                method=self.sign_in_by_get,
+                succeed_regex=['(?<=value=")已经打卡(?=")'],
+                assert_state=(check_sign_in_state, SignState.NO_SIGN_IN),
                 is_base_content=True
             ),
             Work(
                 url='/signin.php',
-                method='get',
-                succeed_regex='(?<=value=")已经打卡(?=")',
-                fail_regex=None,
+                method=self.sign_in_by_get,
+                succeed_regex=['(?<=value=")已经打卡(?=")'],
                 response_urls=['/signin.php', '/index.php'],
-                check_state=('final', SignState.SUCCEED)
+                assert_state=(check_final_state, SignState.SUCCEED)
             )
         ]
 
-    def build_selector(self):
-        selector = super(MainClass, self).build_selector()
-        NetUtils.dict_merge(selector, {
+    @property
+    def details_selector(self) -> dict:
+        selector = super().details_selector
+        net_utils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
                     'elements': {

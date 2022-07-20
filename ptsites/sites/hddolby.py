@@ -1,18 +1,21 @@
+from typing import Final
+
 from ..schema.nexusphp import AttendanceHR
+from ..utils.net_utils import get_module_name
 
 
 class MainClass(AttendanceHR):
-    URL = 'https://www.hddolby.com/'
-    USER_CLASSES = {
+    URL: Final = 'https://www.hddolby.com/'
+    USER_CLASSES: Final = {
         'downloaded': [1099511627776, 8796093022208],
         'share_ratio': [4, 5.5],
         'days': [112, 336]
     }
 
     @classmethod
-    def build_reseed_schema(cls):
+    def reseed_build_schema(cls) -> dict:
         return {
-            cls.get_module_name(): {
+            get_module_name(cls): {
                 'type': 'object',
                 'properties': {
                     'cookie': {'type': 'string'}

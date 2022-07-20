@@ -1,24 +1,29 @@
-import datetime
-import re
+from __future__ import annotations
+
+from typing import Final
 from urllib.parse import urljoin
 
+from flexget.entry import Entry
+
+from ..base.entry import SignInEntry
+from ..base.sign_in import SignState, check_final_state
+from ..base.work import Work
 from ..schema.gazelle import Gazelle
-from ..schema.site_base import Work, SignState
-from ..utils.net_utils import NetUtils
+from ..utils import net_utils
 
 
 class MainClass(Gazelle):
-    URL = 'https://greatposterwall.com/'
-    USER_CLASSES = {
-        'share_ratio': [1.2, 1.2],
+    URL: Final = 'https://greatposterwall.com/'
+    USER_CLASSES: Final = {
         'downloaded': [214748364800, 10995116277760],
+        'share_ratio': [1.2, 1.2],
         'days': [14, 140]
     }
 
     @classmethod
-    def build_reseed_schema(cls):
+    def reseed_build_schema(cls) -> dict:
         return {
-            cls.get_module_name(): {
+            net_utils.get_module_name(cls): {
                 'type': 'object',
                 'properties': {
                     'authkey': {'type': 'string'},
@@ -29,58 +34,39 @@ class MainClass(Gazelle):
             }
         }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/',
-                method='get',
-                succeed_regex='<span class="Header-profileName">.*?</span>',
-                fail_regex=None,
-                check_state=('final', SignState.SUCCEED),
+                method=self.sign_in_by_get,
+                succeed_regex=[('class="HeaderProfile-name.*?">\n(.+?)</a>', 1)],
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True
             )
         ]
 
     @classmethod
-    def build_reseed(cls, entry, config, site, passkey, torrent_id):
+    def reseed_build_entry(cls, entry: Entry, config: dict, site: dict, passkey: str | dict,
+                           torrent_id: str) -> None:
         download_page = site['download_page'].format(torrent_id=torrent_id,
                                                      authkey=passkey['authkey'],
                                                      torrent_pass=passkey['torrent_pass'])
         entry['url'] = urljoin(MainClass.URL, download_page)
 
-    def build_selector(self):
-        selector = super(MainClass, self).build_selector()
-        NetUtils.dict_merge(selector, {
+    @property
+    def details_selector(self) -> dict:
+        selector = super().details_selector
+        net_utils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
-                    'elements': {'table': 'div.box.box_info.box_userinfo_stats > ul'}
+                    'elements': {'table': 'div.SidebarItemStats.SidebarItem > ul'}
                 },
                 'extend': {
                     'link': '/ajax.php?action=community_stats&userid={}'
                 }
             },
             'details': {
-                'join_date': {
-                    'regex': '加入时间:(.*?)前',
-                    'handle': self.handle_join_date
-                },
                 'points': None,
-                'hr': None
             }
         })
         return selector
-
-    def handle_join_date(self, value):
-        year_regex = '(\\d+) years'
-        month_regex = '(\\d+) months'
-        week_regex = '(\\d+) weeks'
-        year = 0
-        month = 0
-        week = 0
-        if year_match := re.search(year_regex, value):
-            year = int(year_match.group(1))
-        if month_match := re.search(month_regex, value):
-            month = int(month_match.group(1))
-        if week_match := re.search(week_regex, value):
-            week = int(week_match.group(1))
-        return (datetime.datetime.now() - datetime.timedelta(days=year * 365 + month * 31 + week * 7)).date()

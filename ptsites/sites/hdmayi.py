@@ -1,9 +1,11 @@
-from ..schema.nexusphp import Visit
+from typing import Final
+
+from ..schema.nexusphp import Attendance
 
 
-class MainClass(Visit):
-    URL = 'http://hdmayi.com/'
-    USER_CLASSES = {
+class MainClass(Attendance):
+    URL: Final = 'http://hdmayi.com/'
+    USER_CLASSES: Final = {
         'downloaded': [805306368000, 3298534883328],
         'share_ratio': [3.05, 4.55],
         'days': [280, 700]

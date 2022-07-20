@@ -1,18 +1,22 @@
+from typing import Final
+
 from ..schema.nexusphp import Visit
-from ..utils.net_utils import NetUtils
+from ..utils import net_utils
+
 
 class MainClass(Visit):
-    URL = 'https://pt.sjtu.edu.cn/'
-    SUCCEED_REGEX = '魔力值 \\(\\d+\\)'
-    USER_CLASSES = {
+    URL: Final = 'https://pt.sjtu.edu.cn/'
+    SUCCEED_REGEX: Final = '魔力值 \\(\\d+\\)'
+    USER_CLASSES: Final = {
         'downloaded': [805306368000, 3298534883328],
         'share_ratio': [3.05, 4.55],
         'days': [280, 700]
     }
 
-    def build_selector(self):
-        selector = super(MainClass, self).build_selector()
-        NetUtils.dict_merge(selector, {
+    @property
+    def details_selector(self) -> dict:
+        selector = super().details_selector
+        net_utils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
                     'elements': {

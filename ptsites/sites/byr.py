@@ -1,23 +1,27 @@
+from typing import Final
+
+from ..base.entry import SignInEntry
+from ..base.sign_in import SignState
+from ..base.sign_in import check_final_state
+from ..base.work import Work
 from ..schema.nexusphp import Visit
-from ..schema.site_base import SignState, Work
 
 
 class MainClass(Visit):
-    URL = 'https://byr.pt/'
-    USER_CLASSES = {
+    URL: Final = 'https://byr.pt/'
+    USER_CLASSES: Final = {
         'uploaded': [4398046511104, 140737488355328],
         'share_ratio': [3.05, 4.55],
         'days': [168, 336]
     }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/index.php',
-                method='get',
-                succeed_regex='欢迎',
-                fail_regex=None,
-                check_state=('final', SignState.SUCCEED),
+                method=self.sign_in_by_get,
+                succeed_regex=['欢迎'],
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True
             )
         ]

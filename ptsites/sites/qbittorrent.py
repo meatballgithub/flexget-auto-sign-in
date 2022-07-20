@@ -2,20 +2,23 @@ from datetime import datetime
 
 from loguru import logger
 
+from ..base.detail import Detail
+from ..base.entry import SignInEntry
+from ..base.sign_in import SignIn
 from ..client.qbittorrent_client import QBittorrentClient
-from ..schema.site_base import SiteBase
+from ..utils.net_utils import get_module_name
 
 
-class MainClass(SiteBase):
+class MainClass(SignIn, Detail):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client = None
 
     @classmethod
-    def build_sign_in_schema(cls):
+    def sign_in_build_schema(cls) -> dict:
         return {
-            cls.get_module_name(): {
+            get_module_name(cls): {
                 'type': 'array',
                 'items': {
                     'type': 'object',
@@ -34,16 +37,12 @@ class MainClass(SiteBase):
         }
 
     @classmethod
-    def build_reseed_schema(cls):
-        return {}
-
-    @classmethod
-    def build_sign_in_entry(cls, entry, config):
+    def sign_in_build_entry(cls, entry: SignInEntry, config: dict) -> None:
         entry['site_name'] = entry['site_config'].get('name')
         entry['title'] = f"{entry['site_name']} {datetime.now().date()}"
         entry['do_not_count'] = True
 
-    def sign_in(self, entry, config):
+    def sign_in(self, entry: SignInEntry, config: dict) -> None:
         site_config = self.prepare_config(entry['site_config'])
         try:
             if not self.client:
@@ -51,17 +50,14 @@ class MainClass(SiteBase):
                 entry['main_data_snapshot'] = self.client.get_main_data_snapshot(id(entry))
                 entry['result'] = 'ok!'
         except Exception as e:
-            entry.fail_with_prefix('error: {}'.format(e))
+            entry.fail_with_prefix(f'error: {e}')
 
-    def get_message(self, entry, config):
-        pass
-
-    def get_details(self, entry, config):
+    def get_details(self, entry: SignInEntry, config: dict) -> None:
         server_state = entry['main_data_snapshot']['server_state']
         torrents = entry['main_data_snapshot']['entry_dict']
         details = {
-            'downloaded': '{} B'.format(server_state['alltime_dl']),
-            'uploaded': '{} B'.format(server_state['alltime_ul']),
+            'downloaded': f'{server_state["alltime_dl"]} B',
+            'uploaded': f'{server_state["alltime_ul"]} B',
             'share_ratio': server_state['global_ratio'],
             'points': 0,
             'leeching': len(
@@ -77,7 +73,7 @@ class MainClass(SiteBase):
         entry['details'] = details
         logger.info('site_name: {}, details: {}', entry['site_name'], entry['details'])
 
-    def prepare_config(self, site_config):
+    def prepare_config(self, site_config: dict) -> dict:
         site_config.setdefault('enabled', True)
         site_config.setdefault('host', 'localhost')
         site_config.setdefault('port', 8080)
@@ -85,6 +81,6 @@ class MainClass(SiteBase):
         site_config.setdefault('verify_cert', True)
         return site_config
 
-    def create_client(self, config):
+    def create_client(self, config: dict) -> QBittorrentClient:
         client = QBittorrentClient(config)
         return client

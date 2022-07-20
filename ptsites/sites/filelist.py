@@ -1,21 +1,27 @@
 import re
+from typing import Final
 
+from ..base.entry import SignInEntry
+from ..base.request import NetworkState, check_network_state
+from ..base.sign_in import SignState
+from ..base.sign_in import check_final_state
+from ..base.work import Work
 from ..schema.ocelot import Ocelot
-from ..schema.site_base import Work, SignState, NetworkState
+from ..utils.net_utils import get_module_name
 
 
 class MainClass(Ocelot):
-    URL = 'https://filelist.io/'
-    USER_CLASSES = {
+    URL: Final = 'https://filelist.io/'
+    USER_CLASSES: Final = {
         'downloaded': [45079976738816],
         'share_ratio': [5],
         'days': [1460]
     }
 
     @classmethod
-    def build_sign_in_schema(cls):
+    def sign_in_build_schema(cls) -> dict:
         return {
-            cls.get_module_name(): {
+            get_module_name(cls): {
                 'type': 'object',
                 'properties': {
                     'login': {
@@ -31,34 +37,27 @@ class MainClass(Ocelot):
             }
         }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_login_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/login.php',
-                method='get',
-                check_state=('network', NetworkState.SUCCEED),
+                method=self.sign_in_by_get,
+                assert_state=(check_network_state, NetworkState.SUCCEED),
             ),
             Work(
                 url='/takelogin.php',
-                method='login',
-                succeed_regex='Hello, <a .+?</a>',
+                method=self.sign_in_by_login,
+                succeed_regex=['Hello, <a .+?</a>'],
                 response_urls=['/my.php'],
-                check_state=('final', SignState.SUCCEED),
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True,
-                validator_regex="(?<='validator' value=').*(?=')"
             )
         ]
 
-    def sign_in_by_login(self, entry, config, work, last_content):
-        login = entry['site_config'].get('login')
-        if not login:
-            entry.fail_with_prefix('Login data not found!')
-            return
-        validator = re.search(work.validator_regex, last_content).group()
-        data = {
-            'validator': validator,
+    def sign_in_build_login_data(self, login: dict, last_content: str) -> dict:
+        return {
+            'validator': re.search("(?<='validator' value=').*(?=')", last_content).group(),
             'username': login['username'],
             'password': login['password'],
             'unlock': 1
         }
-        return self._request(entry, 'post', work.url, data=data)

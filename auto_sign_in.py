@@ -1,16 +1,20 @@
-from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from flexget import plugin
-from flexget.entry import Entry
 from flexget.event import event
+from flexget.task import Task
+from loguru import logger
 
-from .ptsites.executor import Executor
+from .ptsites import executor
+from .ptsites.base.entry import SignInEntry
 from .ptsites.utils.details_report import DetailsReport
 
 
 class PluginAutoSignIn:
-    schema = {
+    schema: dict = {
         'type': 'object',
         'properties': {
             'user-agent': {'type': 'string'},
@@ -28,13 +32,13 @@ class PluginAutoSignIn:
             },
             'sites': {
                 'type': 'object',
-                'properties': Executor.build_sign_in_schema()
+                'properties': executor.build_sign_in_schema()
             }
         },
         'additionalProperties': False
     }
 
-    def prepare_config(self, config):
+    def prepare_config(self, config: dict) -> dict:
         config.setdefault('user-agent', '')
         config.setdefault('command_executor', '')
         config.setdefault('max_workers', {})
@@ -42,18 +46,18 @@ class PluginAutoSignIn:
         config.setdefault('sites', {})
         return config
 
-    def on_task_input(self, task, config):
+    def on_task_input(self, task: Task, config: dict) -> list[SignInEntry]:
         config = self.prepare_config(config)
-        sites = config.get('sites')
+        sites: dict = config['sites']
 
-        entries = []
+        entries: list[SignInEntry] = []
 
         for site_name, site_configs in sites.items():
             if not isinstance(site_configs, list):
                 site_configs = [site_configs]
             for sub_site_config in site_configs:
-                entry = Entry(
-                    title='{} {}'.format(site_name, datetime.now().date()),
+                entry = SignInEntry(
+                    title=f'{site_name} {datetime.now().date()}',
                     url=''
                 )
                 entry['site_name'] = site_name
@@ -62,27 +66,28 @@ class PluginAutoSignIn:
                 entry['result'] = ''
                 entry['messages'] = ''
                 entry['details'] = ''
-                Executor.build_sign_in_entry(entry, config)
+                executor.build_sign_in_entry(entry, config)
                 entries.append(entry)
         return entries
 
-    def on_task_output(self, task, config):
-        max_workers = config.get('max_workers', 1)
-        date_now = str(datetime.now().date())
+    def on_task_output(self, task: Task, config: dict) -> None:
+        max_workers: int = config.get('max_workers', 1)
+        date_now: str = str(datetime.now().date())
         for entry in task.all_entries:
             if date_now not in entry['title']:
-                entry.reject('{} out of date!'.format(entry['title']))
-        if max_workers == 1:
-            for entry in task.accepted:
-                Executor.sign_in(entry, config)
-        else:
-            with ThreadPoolExecutor(max_workers=max_workers) as t:
-                all_task = [t.submit(Executor.sign_in, entry, config) for entry in task.accepted]
-                wait(all_task, return_when=ALL_COMPLETED)
+                entry.reject(f'{entry["title"]} out of date!')
+        with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
+            for entry, feature in [(entry, thread_executor.submit(executor.sign_in, entry, config))
+                                   for entry in task.accepted]:
+                try:
+                    feature.result()
+                except Exception as e:
+                    logger.exception(e)
+                    entry.fail_with_prefix('Exception: ' + str(e))
         if config.get('get_details', True):
             DetailsReport().build(task)
 
 
 @event('plugin.register')
-def register_plugin():
+def register_plugin() -> None:
     plugin.register(PluginAutoSignIn, 'auto_sign_in', api_ver=2)

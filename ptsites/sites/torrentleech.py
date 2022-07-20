@@ -1,35 +1,33 @@
-from dateutil.parser import parse
+from typing import Final
 
-from ..schema.site_base import SiteBase, Work, SignState
+from ..base.entry import SignInEntry
+from ..base.sign_in import check_final_state, SignState, Work
+from ..schema.private_torrent import PrivateTorrent
+from ..utils.value_hanlder import handle_join_date, handle_infinite
 
 
-class MainClass(SiteBase):
-    URL = 'https://www.torrentleech.org/none.torrent'
-    USER_CLASSES = {
+class MainClass(PrivateTorrent):
+    URL: Final = 'https://www.torrentleech.org/none.torrent'
+    USER_CLASSES: Final = {
         'uploaded': [54975581388800],
         'share_ratio': [8],
         'days': [364]
     }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/',
-                method='get',
-                succeed_regex='<span class="link" style="margin-right: 1em;white-space: nowrap;" onclick="window.location.href=\'.+?\'">.+?</span>',
-                fail_regex=None,
-                check_state=('final', SignState.SUCCEED),
+                method=self.sign_in_by_get,
+                succeed_regex=[
+                    '<span class="link" style="margin-right: 1em;white-space: nowrap;" onclick="window.location.href=\'.+?\'">.+?</span>'],
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True
             )
         ]
 
-    def get_message(self, entry, config):
-        self.get_torrentleech_message(entry, config)
-
-    def get_details(self, entry, config):
-        self.get_details_base(entry, config, self.build_selector())
-
-    def build_selector(self):
+    @property
+    def details_selector(self) -> dict:
         return {
             'user_id': '/profile/(.*)?/view',
             'detail_sources': {
@@ -51,14 +49,14 @@ class MainClass(SiteBase):
                 },
                 'share_ratio': {
                     'regex': 'ratio-details">(&inf|∞|[\\d.]+)',
-                    'handle': self.handle_share_ratio
+                    'handle': handle_infinite
                 },
                 'points': {
                     'regex': 'total-TL-points.+?([\\d,.]+)'
                 },
                 'join_date': {
                     'regex': 'Registration date</td>.*?<td>(.*?)</td>',
-                    'handle': self.handle_join_date
+                    'handle': handle_join_date
                 },
                 'seeding': {
                     'regex': ('Uploaded.+?([\\d.]+ [ZEPTGMK]?B).*?\\((\\d+)\\)', 2)
@@ -69,15 +67,3 @@ class MainClass(SiteBase):
                 'hr': None
             }
         }
-
-    def get_torrentleech_message(self, entry, config, messages_url='/messages.php'):
-        entry['result'] += '(TODO: Message)'
-
-    def handle_share_ratio(self, value):
-        if value in ['&inf', '∞']:
-            return '0'
-        else:
-            return value
-
-    def handle_join_date(self, value):
-        return parse(value).date()

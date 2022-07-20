@@ -1,36 +1,39 @@
 import re
+from abc import ABC, abstractmethod
+from datetime import date
 from urllib.parse import urljoin
 
 from dateutil.parser import parse
 from flexget.utils.soup import get_soup
 
-from ..schema.site_base import SiteBase, Work, SignState, NetworkState
-from ..utils.net_utils import NetUtils
+from .private_torrent import PrivateTorrent
+from ..base.entry import SignInEntry
+from ..base.request import check_network_state, NetworkState
+from ..base.sign_in import check_final_state, SignState, Work
+from ..utils import net_utils
 
 
-class XBTIT(SiteBase):
-    SUCCEED_REGEX = None
-    USER_CLASSES = {
-        'uploaded': [8796093022208],
-        'share_ratio': [5.5],
-        'days': [70]
-    }
+class XBTIT(PrivateTorrent, ABC):
+    @property
+    @abstractmethod
+    def SUCCEED_REGEX(self) -> str:
+        pass
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/',
-                method='get',
-                succeed_regex=self.SUCCEED_REGEX,
-                fail_regex=None,
-                check_state=('final', SignState.SUCCEED),
+                method=self.sign_in_by_get,
+                succeed_regex=[self.SUCCEED_REGEX],
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True
             )
         ]
 
-    def build_selector(self):
-        selector = {
-            'user_id': 'usercp.php\\?uid=(\\d+)',
+    @property
+    def details_selector(self) -> dict:
+        return {
+            'user_id': r'usercp\.php\?uid=(\d+)',
             'detail_sources': {
                 'default': {
                     'link': '/usercp.php?uid={}',
@@ -42,46 +45,46 @@ class XBTIT(SiteBase):
             },
             'details': {
                 'uploaded': {
-                    'regex': '↑.([\\d.]+ [ZEPTGMK]?iB)'
+                    'regex': r'↑.([\d.]+ [ZEPTGMK]?iB)'
                 },
                 'downloaded': {
-                    'regex': '↓.([\\d.]+ [ZEPTGMK]?iB)'
+                    'regex': r'↓.([\d.]+ [ZEPTGMK]?iB)'
                 },
                 'share_ratio': {
-                    'regex': 'Ratio: ([\\d.]+)'
+                    'regex': r'Ratio: ([\d.]+)'
                 },
                 'points': {
-                    'regex': 'Bonus Points:.+?([\\d,.]+)'
+                    'regex': r'Bonus Points:.+?([\d,.]+)'
                 },
                 'join_date': {
-                    'regex': 'Joined on.*?(\\d{2}/\\d{2}/\\d{4})',
+                    'regex': r'Joined on.*?(\d{2}/\d{2}/\d{4})',
                     'handle': self.handle_join_date
                 },
                 'seeding': {
-                    'regex': 'Seeding (\\d+)'
+                    'regex': r'Seeding (\d+)'
                 },
                 'leeching': {
-                    'regex': 'Leeching (\\d+)'
+                    'regex': r'Leeching (\d+)'
                 },
                 'hr': None
             }
         }
-        return selector
 
-    def get_XBTIT_message(self, entry, config, MESSAGES_URL_REGEX='usercp\\.php\\?uid=\\d+&do=pm&action=list'):
+    def get_XBTIT_message(self, entry: SignInEntry, config: dict,
+                          MESSAGES_URL_REGEX: str = 'usercp\\.php\\?uid=\\d+&do=pm&action=list') -> None:
         if messages_url_match := re.search(MESSAGES_URL_REGEX, entry['base_content']):
             messages_url = messages_url_match.group()
         else:
             entry.fail_with_prefix('Can not found messages_url.')
             return
         messages_url = urljoin(entry['url'], messages_url)
-        message_box_response = self._request(entry, 'get', messages_url)
-        network_state = self.check_network_state(entry, messages_url, message_box_response)
+        message_box_response = self.request(entry, 'get', messages_url)
+        network_state = check_network_state(entry, messages_url, message_box_response)
         if network_state != NetworkState.SUCCEED:
-            entry.fail_with_prefix('Can not read message box! url:{}'.format(messages_url))
+            entry.fail_with_prefix(f'Can not read message box! url:{messages_url}')
             return
 
-        message_elements = get_soup(NetUtils.decode(message_box_response)).select(
+        message_elements = get_soup(net_utils.decode(message_box_response)).select(
             'tr > td.lista:nth-child(1)')
         unread_elements = filter(lambda elements: elements.get_text() == 'no', message_elements)
         failed = False
@@ -90,13 +93,13 @@ class XBTIT(SiteBase):
             title = td.text
             href = td.a.get('href')
             messages_url = urljoin(messages_url, href)
-            message_response = self._request(entry, 'get', messages_url)
-            network_state = self.check_network_state(entry, [messages_url], message_response)
+            message_response = self.request(entry, 'get', messages_url)
+            network_state = check_network_state(entry, [messages_url], message_response)
             if network_state != NetworkState.SUCCEED:
                 message_body = 'Can not read message body!'
                 failed = True
             else:
-                body_element = get_soup(NetUtils.decode(message_response)).select_one(
+                body_element = get_soup(net_utils.decode(message_response)).select_one(
                     '#PrivateMessageHideShowTR > td > table:nth-child(1) > tbody > tr:nth-child(2) > td')
                 if body_element:
                     message_body = body_element.text.strip()
@@ -105,11 +108,8 @@ class XBTIT(SiteBase):
         if failed:
             entry.fail_with_prefix('Can not read message body!')
 
-    def get_message(self, entry, config):
+    def get_messages(self, entry: SignInEntry, config: dict) -> None:
         self.get_XBTIT_message(entry, config)
 
-    def get_details(self, entry, config):
-        self.get_details_base(entry, config, self.build_selector())
-
-    def handle_join_date(self, value):
+    def handle_join_date(self, value: str) -> date:
         return parse(value, dayfirst=True).date()

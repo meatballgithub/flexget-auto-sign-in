@@ -1,9 +1,12 @@
+from typing import Final
+
 from ..schema.nexusphp import Visit
-from ..utils.net_utils import NetUtils
+from ..utils import net_utils
+
 
 class MainClass(Visit):
-    URL = 'https://springsunday.net/'
-    USER_CLASSES = {
+    URL: Final = 'https://springsunday.net/'
+    USER_CLASSES: Final = {
         'uploaded': [1832519379627, 109951162777600],
         'downloaded': [2199023255552, 10995116277760],
         'share_ratio': [1.2, 2],
@@ -11,9 +14,10 @@ class MainClass(Visit):
         'days': [35, 35]
     }
 
-    def build_selector(self):
-        selector = super(MainClass, self).build_selector()
-        NetUtils.dict_merge(selector, {
+    @property
+    def details_selector(self) -> dict:
+        selector = super().details_selector
+        net_utils.dict_merge(selector, {
             'detail_sources': {
                 'default': {
                     'elements': {

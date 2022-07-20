@@ -1,22 +1,30 @@
+from __future__ import annotations
+
 import re
+from typing import Final
 
-from dateutil.parser import parse
+from requests import Response
 
-from ..schema.site_base import SiteBase, Work, SignState, NetworkState
+from ..base.entry import SignInEntry
+from ..base.request import check_network_state, NetworkState
+from ..base.sign_in import check_final_state, SignState, Work
+from ..schema.private_torrent import PrivateTorrent
+from ..utils.net_utils import get_module_name
+from ..utils.value_hanlder import handle_join_date, handle_infinite
 
 
-class MainClass(SiteBase):
-    URL = 'https://www.myanonamouse.net/'
-    USER_CLASSES = {
+class MainClass(PrivateTorrent):
+    URL: Final = 'https://www.myanonamouse.net/'
+    USER_CLASSES: Final = {
         'uploaded': [26843545600],
         'share_ratio': [2.0],
         'days': [28]
     }
 
     @classmethod
-    def build_sign_in_schema(cls):
+    def sign_in_build_schema(cls):
         return {
-            cls.get_module_name(): {
+            get_module_name(cls): {
                 'type': 'object',
                 'properties': {
                     'login': {
@@ -32,30 +40,29 @@ class MainClass(SiteBase):
             }
         }
 
-    def build_workflow(self, entry, config):
+    def sign_in_build_workflow(self, entry: SignInEntry, config: dict) -> list[Work]:
         return [
             Work(
                 url='/login.php',
-                method='get',
-                check_state=('network', NetworkState.SUCCEED),
+                method=self.sign_in_by_get,
+                assert_state=(check_network_state, NetworkState.SUCCEED),
             ),
             Work(
                 url='/takelogin.php',
-                method='login',
-                succeed_regex='Log Out',
+                method=self.sign_in_by_login,
+                succeed_regex=['Log Out'],
                 response_urls=['/u/'],
-                check_state=('final', SignState.SUCCEED),
+                assert_state=(check_final_state, SignState.SUCCEED),
                 is_base_content=True,
                 t_regex='<input type="hidden" name="t" value="([^"]+)"',
                 a_regex='<input type="hidden" name="a" value="([^"]+)"',
             )
         ]
 
-    def sign_in_by_login(self, entry, config, work, last_content):
-        login = entry['site_config'].get('login')
-        if not login:
+    def sign_in_by_login(self, entry: SignInEntry, config: dict, work: Work, last_content: str) -> Response | None:
+        if not (login := entry['site_config'].get('login')):
             entry.fail_with_prefix('Login data not found!')
-            return
+            return None
         t = re.search(work.t_regex, last_content).group(1)
         a = re.search(work.a_regex, last_content).group(1)
         data = {
@@ -65,15 +72,10 @@ class MainClass(SiteBase):
             'password': login['password'],
             'rememberMe': 'yes'
         }
-        return self._request(entry, 'post', work.url, data=data)
+        return self.request(entry, 'post', work.url, data=data)
 
-    def get_message(self, entry, config):
-        self.get_myanonamouse_message(entry, config)
-
-    def get_details(self, entry, config):
-        self.get_details_base(entry, config, self.build_selector())
-
-    def build_selector(self):
+    @property
+    def details_selector(self) -> dict:
         return {
             'user_id': '/u/(\\d+)',
             'detail_sources': {
@@ -94,29 +96,17 @@ class MainClass(SiteBase):
                 },
                 'share_ratio': {
                     'regex': 'Share ratio.*?(∞|[\\d,.]+)',
-                    'handle': self.handle_share_ratio
+                    'handle': handle_infinite
                 },
                 'points': {
-                    'regex': 'Bonus:\s+([\\d,.]+)'
+                    'regex': r'Bonus:\s+([\d,.]+)'
                 },
                 'join_date': {
                     'regex': 'Join date\\s*?(\\d{4}-\\d{2}-\\d{2})',
-                    'handle': self.handle_join_date
+                    'handle': handle_join_date
                 },
                 'seeding': None,
                 'leeching': None,
                 'hr': None
             }
         }
-
-    def get_myanonamouse_message(self, entry, config, messages_url='/messages.php?action=viewmailbox'):
-        entry['result'] += '(TODO: Message)'
-
-    def handle_share_ratio(self, value):
-        if value in ['---', '∞']:
-            return '0'
-        else:
-            return value
-
-    def handle_join_date(self, value):
-        return parse(value).date()

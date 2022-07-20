@@ -1,24 +1,29 @@
+from __future__ import annotations
+
+from typing import Final
 from urllib.parse import urljoin
 
+from flexget.entry import Entry
+
 from ..schema.nexusphp import Visit
-from ..schema.site_base import SiteBase
+from ..utils.net_utils import get_module_name
 
 
 class MainClass(Visit):
-    URL = 'https://www.hd.ai/'
-    SUCCEED_REGEX = '(?<=<i class="layui-icon layui-icon-username">)</i>.*?(?=</a>)'
-    TORRENT_PAGE_URL = urljoin(URL, '/details.php?id={torrent_id}&hit=1')
-    DOWNLOAD_URL_REGEX = 'download\\.php\\?hash=.*?id=\\d+'
-    USER_CLASSES = {
+    URL: Final = 'https://www.hd.ai/'
+    SUCCEED_REGEX: Final = '(?<=<i class="layui-icon layui-icon-username">)</i>.*?(?=</a>)'
+    TORRENT_PAGE_URL: Final = urljoin(URL, '/details.php?id={torrent_id}&hit=1')
+    DOWNLOAD_URL_REGEX: Final = 'download\\.php\\?hash=.*?id=\\d+'
+    USER_CLASSES: Final = {
         'downloaded': [805306368000, 3298534883328],
         'share_ratio': [3.05, 4.55],
         'days': [280, 700]
     }
 
     @classmethod
-    def build_reseed_schema(cls):
+    def reseed_build_schema(cls):
         return {
-            cls.get_module_name(): {
+            get_module_name(cls): {
                 'type': 'object',
                 'properties': {
                     'cookie': {'type': 'string'}
@@ -28,6 +33,7 @@ class MainClass(Visit):
         }
 
     @classmethod
-    def build_reseed(cls, entry, config, site, passkey, torrent_id):
-        SiteBase.build_reseed_from_page(entry, config, passkey, torrent_id, cls.URL, cls.TORRENT_PAGE_URL,
-                                        cls.DOWNLOAD_URL_REGEX)
+    def reseed_build_entry(cls, entry: Entry, config: dict, site: dict, passkey: str | dict,
+                           torrent_id: str) -> None:
+        cls.reseed_build_entry_from_page(entry, config, passkey, torrent_id, cls.URL, cls.TORRENT_PAGE_URL,
+                                         cls.DOWNLOAD_URL_REGEX)

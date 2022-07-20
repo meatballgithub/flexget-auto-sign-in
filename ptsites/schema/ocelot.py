@@ -1,17 +1,15 @@
-from .site_base import SiteBase
+from abc import ABC
+
+from .private_torrent import PrivateTorrent
+from ..utils.value_hanlder import handle_infinite
 
 
-class Ocelot(SiteBase):
+class Ocelot(PrivateTorrent, ABC):
 
-    def get_message(self, entry, config):
-        self.get_ocelot_message(entry, config)
-
-    def get_details(self, entry, config):
-        self.get_details_base(entry, config, self.build_selector())
-
-    def build_selector(self):
-        selector = {
-            'user_id': 'userdetails.php\\?id=(\\d+)',
+    @property
+    def details_selector(self) -> dict:
+        return {
+            'user_id': r'userdetails\.php\?id=(\d+)',
             'detail_sources': {
                 'default': {
                     'link': '/userdetails.php?id={}',
@@ -23,35 +21,25 @@ class Ocelot(SiteBase):
             },
             'details': {
                 'uploaded': {
-                    'regex': 'Uploaded.+?([\\d.]+ ?[ZEPTGMk]?B)'
+                    'regex': r'Uploaded.+?([\d.]+ ?[ZEPTGMk]?B)'
                 },
                 'downloaded': {
-                    'regex': 'Downloaded.+?([\\d.]+ ?[ZEPTGMk]?B)'
+                    'regex': r'Downloaded.+?([\d.]+ ?[ZEPTGMk]?B)'
                 },
                 'share_ratio': {
-                    'regex': 'Ratio.+?(Inf\\.|[\\d.]+)',
-                    'handle': self.handle_share_ratio
+                    'regex': r'Ratio.+?(Inf\.|[\d.]+)',
+                    'handle': handle_infinite
                 },
                 'points': {
-                    'regex': ('Hello.+?(\\d+).*?(Inf\\.|[\\d.]+)', 2)
+                    'regex': (r'Hello.+?(\d+).*?(Inf\.|[\d.]+)', 2)
                 },
                 'join_date': {
-                    'regex': 'Join.date.*?(\\d{4}-\\d{2}-\\d{2})',
+                    'regex': r'Join.date.*?(\d{4}-\d{2}-\d{2})',
                 },
                 'seeding': {
-                    'regex': 'Seeding (\\d)+'
+                    'regex': r'Seeding (\d)+'
                 },
                 'leeching': None,
                 'hr': None
             }
         }
-        return selector
-
-    def get_ocelot_message(self, entry, config, messages_url='/messages.php'):
-        entry['result'] += '(TODO: Message)'
-
-    def handle_share_ratio(self, value):
-        if value in ['Inf.', '.']:
-            return '0'
-        else:
-            return value
